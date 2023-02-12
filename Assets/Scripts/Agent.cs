@@ -4,15 +4,17 @@ using UnityEngine;
 
 public class Agent : MonoBehaviour
 {
-    // Start is called before the first frame update
-    void Start()
-    {
-        
-    }
+    public static ActionEnum RndAction()
+        => (ActionEnum) Random.Range(0, 4);
 
-    // Update is called once per frame
-    void Update()
+    private TilePos _currentPos;
+    public TilePos CurrentPos
     {
-        
+        get => _currentPos;
+        set
+        {
+            _currentPos = value;
+            transform.localPosition = TileGrid.LogicalToLocalPos(_currentPos.X, _currentPos.Y);
+        }
     }
 }

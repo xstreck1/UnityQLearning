@@ -1,7 +1,9 @@
-﻿// Created by Dr. Adam Streck, 2-123, adam.streck@gmail.com
+﻿// Created by Dr. Adam Streck, 2023, adam.streck@gmail.com
 
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
+using Random = UnityEngine.Random;
 
 public class TileGrid : MonoBehaviour
 {
@@ -10,11 +12,27 @@ public class TileGrid : MonoBehaviour
     [SerializeField] private Tile awardTile;
     [SerializeField] private Agent agentPrefab;
     
+    [SerializeField] private bool automatic;
+    [SerializeField] private float waterReward = -1;
+    [SerializeField] private float grassReward = 0;
+    [SerializeField] private float awardReward = 1;
+    [SerializeField] private float alpha = 0.1f;
     [SerializeField] private float gamma = 0.9f;
-    [SerializeField] private int iterations = 1000;
+
+    private readonly TileEnum[,] _map = 
+    {
+        {TileEnum.Water, TileEnum.Water, TileEnum.Water, TileEnum.Water, TileEnum.Water},
+        {TileEnum.Water, TileEnum.Grass, TileEnum.Grass, TileEnum.Grass, TileEnum.Water},
+        {TileEnum.Water, TileEnum.Grass, TileEnum.Award, TileEnum.Grass, TileEnum.Water},
+        {TileEnum.Water, TileEnum.Grass, TileEnum.Grass, TileEnum.Grass, TileEnum.Water},
+        {TileEnum.Water, TileEnum.Water, TileEnum.Grass, TileEnum.Water, TileEnum.Water},
+        {TileEnum.Water, TileEnum.Grass, TileEnum.Grass, TileEnum.Grass, TileEnum.Water}, 
+        {TileEnum.Water, TileEnum.Grass, TileEnum.Grass, TileEnum.Grass, TileEnum.Water},
+        {TileEnum.Water, TileEnum.Grass, TileEnum.Grass, TileEnum.Grass, TileEnum.Water},
+        {TileEnum.Water, TileEnum.Water, TileEnum.Water, TileEnum.Water, TileEnum.Water}
+    };
+    private readonly List<ActionEnum> _actions = new() {ActionEnum.Left, ActionEnum.Right, ActionEnum.Up, ActionEnum.Down};
     
-    private int[,] _rewards;
-    private float[,] _qValues;
     private Tile[,] _tiles;
     private Agent _agent;
     private int _counter;
@@ -24,12 +42,51 @@ public class TileGrid : MonoBehaviour
     private const int BOARD_HEIGHT = 9;
     private const int START_X = 2;
     private const int START_Y = 6;
+
+    private Tile TilePrefabByType(TileEnum tileEnum)
+    => tileEnum switch
+        {
+            TileEnum.Water => waterTile,
+            TileEnum.Grass => grassTile,
+            TileEnum.Award => awardTile,
+            _ => null
+        };
     
+    private double RewardByType(TileEnum tileEnum)
+    => tileEnum switch
+        {
+            TileEnum.Water => waterReward,
+            TileEnum.Grass => grassReward,
+            TileEnum.Award => awardReward,
+            _ => 0
+        };
+    
+    private Tile TileByPos(TilePos pos) 
+        => _tiles[pos.Y, pos.X];
+    
+    public static Vector3 LogicalToLocalPos(int x, int y) 
+        => new(TILE_SIZE * x, -TILE_SIZE * y, 0);
+
+    // Bounded move on a grass, otherwise stay
+    private TilePos GetTargetPos(TilePos source, ActionEnum action)
+    {
+        var tile = _tiles[source.Y, source.X];
+        if (tile.TileType == TileEnum.Grass)
+        {
+            return action switch
+            {
+                ActionEnum.Down when source.Y > 0 => source with { Y = source.Y - 1 },
+                ActionEnum.Up when source.Y < BOARD_HEIGHT - 1 => source with { Y = source.Y + 1 },
+                ActionEnum.Left when source.X > 0 => source with { X = source.X - 1 },
+                ActionEnum.Right when source.X < BOARD_WIDTH - 1 => source with { X = source.X + 1 },
+                _ => source
+            };
+        }
+        return source;
+    }
 
     private void Start()
     {
-        GenerateRewards();
-        InitializeQValues();
         GenerateTiles();
         InstantiateAgent();
         ResetAgentPos();
@@ -37,101 +94,53 @@ public class TileGrid : MonoBehaviour
 
     private void Update()
     {
-        if (_counter++ < iterations)
+        if (automatic || Input.GetKeyDown(KeyCode.Space))
         {
-            int rndX = Random.Range(0, BOARD_WIDTH);
-            int rndY = Random.Range(0, BOARD_HEIGHT);
-            float newQ = CalcQ(rndX, rndY);
-            _agent.transform.localPosition = LogicalToLocalPos(rndX, rndY);
-            _qValues[rndY, rndX] = newQ;
-            _tiles[rndY, rndX].SetQValue(newQ);
-        }
-        else
-        {
-            int rndX = START_X;
-            int rndY = START_Y;
-            float newQ = CalcQ(rndX, rndY);
-            _agent.transform.localPosition = LogicalToLocalPos(rndX, rndY);
-            _qValues[rndY, rndX] = newQ;
-            _tiles[rndY, rndX].SetQValue(newQ);
+            if (TileByPos(_agent.CurrentPos).TileType != TileEnum.Grass)
+            {
+                ResetAgentPos();
+            }
+            else
+            {
+                var statePos = _agent.CurrentPos;
+                var stateTile = TileByPos(statePos);
+                var randomAction = _actions[Random.Range(0, _actions.Count)];
+                var targetPos = GetTargetPos(statePos, randomAction);
+                var targetState = TileByPos(targetPos);
+                var currentQ = stateTile.GetQValue(randomAction);
+                var reward = targetState.Reward;
+                var maxQNext = _actions.Select(a => targetState.GetQValue(a)).Max();
+                var temporalDifference = reward + gamma * maxQNext - currentQ;
+                var newQ = currentQ + alpha * temporalDifference;
+                stateTile.SetQValue(randomAction, newQ);
+                _agent.CurrentPos = targetPos;
+            }
         }
     }
-    
-    private void InitializeQValues()
-    {
-        _qValues = new float[BOARD_HEIGHT, BOARD_WIDTH];
-    }
-
-    private Vector3 LogicalToLocalPos(int x, int y) 
-        => new(TILE_SIZE * x, -TILE_SIZE * y, 0);
     
     private void ResetAgentPos()
     {
-        _agent.transform.localPosition = LogicalToLocalPos(START_X, START_Y);
+        _agent.CurrentPos = new TilePos(START_X, START_Y);
     }
     
     private void InstantiateAgent()
     {
         _agent = Instantiate(agentPrefab, transform);
     }
-
-    private void GenerateRewards()
-    {
-        _rewards = new[,]
-        {
-            {-1, -1, -1, -1, -1},
-            {-1, 0, 0, 0, -1},
-            {-1, 0, 1, 0, -1},
-            {-1, 0, 0, 0, -1},
-            {-1, -1, 0, -1, -1},
-            {-1, 0, 0, 0, -1}, 
-            {-1, 0, 0, 0, -1},
-            {-1, 0, 0, 0, -1},
-            {-1, -1, -1, -1, -1}
-        };
-    }
-
-    private float CalcQ(int x, int y)
-    {
-        float q = float.NegativeInfinity;
-        for (int dy = -1; dy <= 1; dy += 1)
-        {
-            if (y + dy > 0 && y + dy < BOARD_HEIGHT)
-            {
-                for (int dx = -1; dx <= 1; dx += 1)
-                {
-                    if (x + dx > 0 && x + dx < BOARD_WIDTH)
-                    {
-                        float newQ = _rewards[y + dy, x + dx] + gamma * _qValues[y + dy, x + dx];
-                        q = Mathf.Max(q, newQ);
-                    }
-                }
-            }
-        }
-        return q;
-    }
-
-    private Tile GetTileByReward(int reward)
-        => reward switch
-        {
-            -1 => waterTile,
-            0 => grassTile,
-            1 => awardTile,
-            _ => null
-        };
-
+    
     private void GenerateTiles()
     {
         _tiles = new Tile[BOARD_HEIGHT, BOARD_WIDTH];
-        for (int y = 0; y < BOARD_HEIGHT; y++)
+        for (var y = 0; y < BOARD_HEIGHT; y++)
         {
-            for (int x = 0; x < BOARD_WIDTH; x++)
+            for (var x = 0; x < BOARD_WIDTH; x++)
             {
-                var tilePrefab = GetTileByReward(_rewards[y, x]);
+                var tileType = _map[y, x];
+                var tilePrefab = TilePrefabByType(tileType);
                 var newTile = Instantiate(tilePrefab, transform);
-                newTile.SetReward(_rewards[y, x]);
-                newTile.SetQValue(0);
-                newTile.transform.localPosition = LogicalToLocalPos(x, y);
+                newTile.Reward = RewardByType(tileType);
+                _actions.ForEach(a => newTile.SetQValue(a, 0));
+                newTile.CurrentPos = new TilePos(x, y);
                 _tiles[y, x] = newTile;
             }
         }

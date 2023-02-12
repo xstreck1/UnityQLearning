@@ -7,6 +7,10 @@ PrefabInstance:
   m_Modification:
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 1377922288698912304, guid: 14c4b60b298ea52499a9ce88ce8aec0a, type: 3}
+      propertyPath: tileType
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 8819983788198302020, guid: 14c4b60b298ea52499a9ce88ce8aec0a, type: 3}
       propertyPath: m_Name
       value: TileAward
