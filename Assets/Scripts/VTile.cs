@@ -17,8 +17,15 @@ public class VTile : BaseTile
         }
     }
 
+    public double NextValue { get; set; }
+
     private void Start()
     {
-        Value = TileType == TileEnum.Grass ? 0 : Reward;
+        Value = 0;
+    }
+
+    public void Step()
+    {
+        Value = NextValue;
     }
 }

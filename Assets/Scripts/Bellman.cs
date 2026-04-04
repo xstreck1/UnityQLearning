@@ -15,11 +15,11 @@ public class Bellman : MonoBehaviour
     {
         return Agent.Actions
             .Select(a => tileGrid.GetTargetTile(tile, a))
-            .Select(t => t == tile ? tile.Reward : t.Reward + gamma * t.Value)
+            .Select(t => t.Reward + gamma * t.Value)
             .Max();
     }
 
-    private void UpdateBoard()
+    private void CalculateValues()
     {
         for (var y = 0; y < TileGrid.BOARD_HEIGHT; y++)
         {
@@ -28,8 +28,20 @@ public class Bellman : MonoBehaviour
                 var tile = tileGrid.GetTileByCoords<VTile>(x, y);
                 if (tile.TileType == TileEnum.Grass)
                 {
-                    tile.Value = GetNewValue(tile);
+                    tile.NextValue = GetNewValue(tile);
                 }
+            }
+        }
+    }
+
+    private void Step()
+    {
+        for (var y = 0; y < TileGrid.BOARD_HEIGHT; y++)
+        {
+            for (var x = 0; x < TileGrid.BOARD_WIDTH; x++)
+            {
+                var tile = tileGrid.GetTileByCoords<VTile>(x, y);
+                tile.Step();
             }
         }
     }
@@ -40,10 +52,14 @@ public class Bellman : MonoBehaviour
     }
 
     private void Update()
-    {
+    {        
+        if (Input.GetKeyDown(KeyCode.A)) {
+            automatic = !automatic;
+        }
         if (automatic || Input.GetKeyDown(KeyCode.Space))
         {
-            UpdateBoard();
+            CalculateValues();
+            Step();
         }
     }
 }

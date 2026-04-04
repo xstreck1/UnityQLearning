@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+﻿using System.Collections.Generic;
+using UnityEngine;
 using UnityEngine.UI;
 
 public class TileGrid : MonoBehaviour
@@ -52,6 +53,16 @@ public class TileGrid : MonoBehaviour
     public T GetTileByCoords<T>(int x, int y) where T : BaseTile
         => (T)_tiles[y, x];
 
+    public IEnumerable<T> Enumerate<T>() where T : BaseTile
+    {
+        for (var y = 0; y < BOARD_HEIGHT; y++)
+        {
+            for (var x = 0; x < BOARD_WIDTH; x++)
+            {
+                yield return (T) _tiles[x, y];
+            }
+        }
+    }
 
     public static Vector3 LogicalToLocalPos(TilePos pos)
         => new(OFFSET + TILE_SIZE * pos.X, -OFFSET + -TILE_SIZE * pos.Y, 0);
