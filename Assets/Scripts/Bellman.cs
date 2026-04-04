@@ -10,7 +10,30 @@ public class Bellman : MonoBehaviour
 
     [Header("Controls")]
     [SerializeField] private bool automatic;
+    
+    private double GetNewValue(VTile tile)
+    {
+        return Agent.Actions
+            .Select(a => tileGrid.GetTargetTile(tile, a))
+            .Select(t => t == tile ? tile.Reward : t.Reward + gamma * t.Value)
+            .Max();
+    }
 
+    private void UpdateBoard()
+    {
+        for (var y = 0; y < TileGrid.BOARD_HEIGHT; y++)
+        {
+            for (var x = 0; x < TileGrid.BOARD_WIDTH; x++)
+            {
+                var tile = tileGrid.GetTileByCoords<VTile>(x, y);
+                if (tile.TileType == TileEnum.Grass)
+                {
+                    tile.Value = GetNewValue(tile);
+                }
+            }
+        }
+    }
+    
     private void Start()
     {
         tileGrid.GenerateTiles();
@@ -20,17 +43,7 @@ public class Bellman : MonoBehaviour
     {
         if (automatic || Input.GetKeyDown(KeyCode.Space))
         {
-            for (var y = 0; y < TileGrid.BOARD_HEIGHT; y++)
-            {
-                for (var x = 0; x < TileGrid.BOARD_WIDTH; x++)
-                {
-                    var tile = tileGrid.GetTileByCoords<VTile>(x, y);
-                    tile.Value = Agent.Actions
-                        .Select(a => tileGrid.GetTargetTile(tile, a))
-                        .Select(t => t == tile ? tile.Reward : tile.Reward + gamma * t.Value)
-                        .Max();
-                }
-            }
+            UpdateBoard();
         }
     }
 }

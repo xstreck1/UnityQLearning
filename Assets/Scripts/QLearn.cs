@@ -42,6 +42,9 @@ public class QLearn : MonoBehaviour
 
     private void Update()
     {
+        if (Input.GetKeyDown(KeyCode.A)) {
+            automatic = !automatic;
+        }
         if (automatic || Input.GetKeyDown(KeyCode.Space))
         {
             if (_agent.State.TileType != TileEnum.Grass)

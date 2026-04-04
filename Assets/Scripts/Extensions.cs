@@ -6,10 +6,9 @@ using System.Linq;
 
 public static class Extensions
 {
+    private static readonly System.Random _rnd = new System.Random();
+
     // List shuffle extension
     public static IEnumerable<T> Shuffle<T>(this IEnumerable<T> source)
-    {
-        var rnd = new System.Random();
-        return source.OrderBy(_ => rnd.Next());
-    }
+        => source.OrderBy(_ => _rnd.Next());
 }

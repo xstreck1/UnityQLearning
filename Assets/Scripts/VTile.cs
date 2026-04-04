@@ -19,6 +19,6 @@ public class VTile : BaseTile
 
     private void Start()
     {
-        Value = 0;
+        Value = TileType == TileEnum.Grass ? 0 : Reward;
     }
 }
