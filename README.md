@@ -39,14 +39,32 @@ A **stochastic policy** provides the probability of taking each action in a give
 
 ### Grid World Example
 
-In the example grid environment used throughout this article:
+In the example grid environment used throughout this repository:
 
 - **Actions:** `A = {Left, Right, Up, Down}`
 - **States:** `S = [0…7] × [0…4]` (an 8 × 5 tile grid)
-- **Tile types:**
-  - 🟩 **Grass** — traversable tiles with reward `0`
-  - 🌊 **Water** — sink tiles with reward `−1` (no escape)
-  - 🏆 **Award** — goal tile with reward `+1`
+- **Tile types:**<br>
+  <img src="Assets/Sprites/grass.png" width="16"> **Grass** — traversable tiles with reward `0`<br>
+  <img src="Assets/Sprites/water.png" width="16"> **Water** — sink tiles with reward `−1` (no escape)<br>
+  <img src="Assets/Sprites/award.png" width="16"> **Award** — goal tile with reward `+1`
+
+The agent starts on a grass tile and can move in four directions. The episode ends when the agent reaches water or the award tile.
+
+![Grid](Docs/Grid.png)
+
+The map encoded as a 2D array of rewards looks like this:
+```
+_map = {
+    { -1, -1, -1, -1, -1, -1, -1, -1 },   // all water border
+    { -1,  0,  0,  0, -1,  0,  1, -1 },   // 1 = Award (trophy)
+    { -1,  0,  0,  0, -1,  0,  0, -1 },
+    { -1,  0,  0,  0,  0,  0,  0, -1 },
+    { -1, -1, -1, -1, -1, -1, -1, -1 },   // all water border
+}
+```
+
+There is a narrow choke-point at column 4, forcing the agent to navigate around it to reach the trophy.
+
 
 The **optimal policy** leads the agent from any grass tile to the trophy in the fewest possible steps.
 
@@ -96,33 +114,43 @@ R(s, a) =  1   if s is the Award tile
           -1   if s is a Water tile
 ```
 
-A universal **sink state** is added: entering water or the award tile transitions the agent to the sink (episode ends).
+A universal **sink state** is added: entering water or the award tile transitions the agent to the sink (episode ends). Therefore, we only allow taking an action when on a grass tile.
 
 ### Implementation in Unity — `Bellman.cs`
 
 ```csharp
-private void Update()
+private double GetNewValue(VTile tile)
 {
-    if (automatic || Input.GetKeyDown(KeyCode.Space))
+    return Agent.Actions
+        .Select(a => tileGrid.GetTargetTile(tile, a))
+        .Select(t => t.Reward + gamma * t.Value)
+        .Max();
+}
+
+private void CalculateValues()
+{
+    for (var y = 0; y < TileGrid.BOARD_HEIGHT; y++)
     {
-        for (var y = 0; y < TileGrid.BOARD_HEIGHT; y++)
+        for (var x = 0; x < TileGrid.BOARD_WIDTH; x++)
         {
-            for (var x = 0; x < TileGrid.BOARD_WIDTH; x++)
+            var tile = tileGrid.GetTileByCoords<VTile>(x, y);
+            if (tile.TileType == TileEnum.Grass)
             {
-                var tile = tileGrid.GetTileByCoords<VTile>(x, y);
-                tile.Value = Agent.Actions
-                    .Select(a => tileGrid.GetTargetTile(tile, a))
-                    .Select(t => t == tile ? tile.Reward : tile.Reward + gamma * t.Value)
-                    .Max();
+                tile.NextValue = GetNewValue(tile);
             }
         }
     }
 }
+
 ```
 
 On every step, the value `V(s)` of each tile is updated to the maximum over all actions of the immediate reward plus the discounted value of the resulting tile. The future reward **propagates outward from the Award tile** with a diminishing return controlled by `γ = 0.9`.
 
 ---
+
+The solution converges after 10 iterations, at which point the optimal policy can be derived by selecting the action that leads to the tile with the highest value.
+
+![Bellman propagation](Docs/Bellmann.gif)
 
 ## 4. Action Quality (Q-Values)
 
@@ -154,13 +182,12 @@ The TD term combines the **immediate reward** with the **best possible future re
 ```csharp
 var s      = _agent.State;
 var a      = GetAction(s);
-var sPrime = tileGrid.GetTargetTile(s, a);
 var q      = s.GetQValue(a);
+var sPrime = tileGrid.GetTargetTile(s, a);
 var r      = sPrime.Reward;
 var qMax   = Agent.Actions.Select(aPrime => sPrime.GetQValue(aPrime)).Max();
 var td     = r + gamma * qMax - q;
-var newQ   = q + alpha * td;
-s.SetQValue(a, newQ);
+s.SetQValue(a, q + alpha * td);
 _agent.State = sPrime;
 ```
 
@@ -273,19 +300,6 @@ The simulation is built in Unity and consists of the following components:
 | `QTile` | Extends `BaseTile`; stores and displays four Q-values (used by Q-Learning demo) |
 | `TileGrid` | Manages the 8 × 5 grid; handles tile generation, coordinate lookup, and movement rules |
 
-### The Map
-
-```
-_map = {
-    { -1, -1, -1, -1, -1, -1, -1, -1 },   // all water border
-    { -1,  0,  0,  0, -1,  0,  1, -1 },   // 1 = Award (trophy)
-    { -1,  0,  0,  0, -1,  0,  0, -1 },
-    { -1,  0,  0,  0,  0,  0,  0, -1 },
-    { -1, -1, -1, -1, -1, -1, -1, -1 },   // all water border
-}
-```
-
-There is a narrow choke-point at column 4, forcing the agent to navigate around it to reach the trophy.
 
 ### Movement Rules — `TileGrid.cs`
 

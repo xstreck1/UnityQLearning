@@ -21,6 +21,7 @@ public class QLearn : MonoBehaviour
 
     [Header("Controls")]
     [SerializeField] private bool automatic;
+    [SerializeField] private float stepsPerSecond = 10f;
 
     private Agent _agent;
     private int _counter;
@@ -33,6 +34,16 @@ public class QLearn : MonoBehaviour
         _epsilon = epsilonStart;
         ResetAgentPos();
     }
+
+    private System.Collections.IEnumerator AutoStep()
+    {
+        while (automatic)
+        {
+            yield return new WaitForSeconds(stepsPerSecond > 0f ? 1f / stepsPerSecond : 0f);
+            Step();
+        }
+        yield return null;
+    }
     
     private ActionEnum GetAction(QTile state)
         => Random.Range(0f, 1f) > _epsilon 
@@ -41,31 +52,41 @@ public class QLearn : MonoBehaviour
 
     private void Update()
     {
-        if (Input.GetKeyDown(KeyCode.A)) {
-            automatic = !automatic;
-        }
-        if (automatic || Input.GetKeyDown(KeyCode.Space))
+        if (Input.GetKeyDown(KeyCode.A))
         {
-            if (_agent.State.TileType != TileEnum.Grass)
+            automatic = !automatic;
+            if (automatic)
             {
-                ResetAgentPos();
+                StartCoroutine(nameof(AutoStep));
             }
-            else
-            {
-                var s = _agent.State;
-                var a = GetAction(s);
-                var sPrime = tileGrid.GetTargetTile(s, a);
-                var q = s.GetQValue(a);
-                var r = sPrime.Reward;
-                var qMax = Agent.Actions.Select(aPrime => sPrime.GetQValue(aPrime)).Max();
-                var td = r + gamma * qMax - q;
-                var newQ = q + alpha * td;
-                s.SetQValue(a, newQ);
-                _agent.State = sPrime;
-                _epsilon = Mathf.Max(epsilonEnd, _epsilon - epsilonDecay);
-            }
-            Debug.Log($"Step {_counter++}, epsilon {_epsilon}");
         }
+
+        if (Input.GetKeyDown(KeyCode.Space))
+        {
+            Step();
+        }
+    }
+
+    private void Step()
+    {
+        if (_agent.State.TileType != TileEnum.Grass)
+        {
+            ResetAgentPos();
+        }
+        else
+        {
+            var s = _agent.State;
+            var a = GetAction(s);
+            var q = s.GetQValue(a);
+            var sPrime = tileGrid.GetTargetTile(s, a);
+            var r = sPrime.Reward;
+            var qMax = Agent.Actions.Select(aPrime => sPrime.GetQValue(aPrime)).Max();
+            var td = r + gamma * qMax - q;
+            s.SetQValue(a, q + alpha * td);
+            _agent.State = sPrime;
+            _epsilon = Mathf.Max(epsilonEnd, _epsilon - epsilonDecay);
+        }
+        Debug.Log($"Step {_counter++}, epsilon {_epsilon}");
     }
 
     private void ResetAgentPos()
