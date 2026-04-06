@@ -5,6 +5,26 @@ by Dr. Adam Streck.
 
 ---
 
+## Usage
+
+The project contains two Unity scenes (located in `Assets/Scenes/`):
+
+| Scene | Description |
+|-------|-------------|
+| **Bellman** | Iterative Bellman value-propagation demo — computes and displays `V(s)` for every tile |
+| **QLearn** | Q-Learning demo with ε-greedy exploration — trains an agent to reach the trophy |
+
+### Controls
+
+| Key | Action |
+|-----|--------|
+| **Space** | Advance one step |
+| **A** | Toggle automatic stepping (continuous play) |
+
+Open either scene in the Unity Editor and enter Play mode. Press **Space** to step through the algorithm one iteration at a time, or press **A** to let it run automatically.
+
+---
+
 ## Table of Contents
 
 1. [What is a Policy?](#1-what-is-a-policy)
